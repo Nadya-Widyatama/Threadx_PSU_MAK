@@ -1,5 +1,9 @@
-../Core/Src/app_threadx.c:76:6:App_ThreadX_Init	56	static
-../Core/Src/app_threadx.c:100:6:MX_ThreadX_Init	8	static
-../Core/Src/app_threadx.c:114:6:ReadADC_voltage_current	64	static
-../Core/Src/app_threadx.c:157:6:Set_print	24	static
-../Core/Src/app_threadx.c:166:6:Set_LED	24	static
+../Core/Src/app_threadx.c:87:6:App_ThreadX_Init	56	static
+../Core/Src/app_threadx.c:112:6:MX_ThreadX_Init	8	static
+../Core/Src/app_threadx.c:126:6:ReadADC_voltage_current	64	static
+../Core/Src/app_threadx.c:180:6:Setup	16	static
+../Core/Src/app_threadx.c:187:6:Set_LED	24	static
+../Core/Src/app_threadx.c:201:6:Transmit	240	static
+../Core/Src/app_threadx.c:214:6:Beep_Beep	24	static
+../Core/Src/app_threadx.c:230:6:write_value	32	static
+../Core/Src/app_threadx.c:272:6:ReadData	56	dynamic

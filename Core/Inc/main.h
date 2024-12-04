@@ -33,6 +33,9 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 extern TIM_HandleTypeDef htim1;
 extern ADC_HandleTypeDef hadc1;
+extern SPI_HandleTypeDef hspi1;
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
