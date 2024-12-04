@@ -1,0 +1,5 @@
+../Core/Src/app_threadx.c:76:6:App_ThreadX_Init	1
+../Core/Src/app_threadx.c:100:6:MX_ThreadX_Init	1
+../Core/Src/app_threadx.c:114:6:ReadADC_voltage_current	3
+../Core/Src/app_threadx.c:157:6:Set_print	1
+../Core/Src/app_threadx.c:166:6:Set_LED	3
