@@ -39,7 +39,7 @@
 #define THREAD_STACK_SIZE 1024
 #define BUFFER_SIZE 10
 #define BatteryCapacity1 2.0 //Measurement in units of Ah
-#define BatteryCapacity2 4.0 //Measurement in units of Ah
+#define BatteryCapacity2 2.0 //Measurement in units of Ah
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,11 +53,13 @@ uint8_t thread_Setone[THREAD_STACK_SIZE];
 uint8_t thread_Settwo[THREAD_STACK_SIZE];
 uint8_t thread_Setthree[THREAD_STACK_SIZE];
 uint8_t thread_Setfour[THREAD_STACK_SIZE];
+uint8_t thread_Setfive[THREAD_STACK_SIZE];
 
 TX_THREAD setone;
 TX_THREAD settwo;
 TX_THREAD setthree;
 TX_THREAD setfour;
+TX_THREAD setfive;
 
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2);
 void write_value(float value, uint32_t address);
@@ -77,6 +79,8 @@ VOID ReadADC_voltage_current(ULONG initial_input);
 VOID Setup(ULONG initial_input);
 VOID Set_LED(ULONG initial_input);
 VOID Transmit(ULONG initial_input);
+VOID PowerConsumption(ULONG initial_input);
+
 /* USER CODE END PFP */
 
 /**
@@ -98,7 +102,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	tx_thread_create(&setone, "Setone", ReadADC_voltage_current, 0, thread_Setone, THREAD_STACK_SIZE, 14, 14, 1, TX_AUTO_START);
 	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 13, 13, 1, TX_AUTO_START);
 	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 12, 12, 1, TX_AUTO_START);
-	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 12, 12, 1, TX_AUTO_START);
+	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 10, 10, 1, TX_AUTO_START);
+	tx_thread_create(&setfive, "Setfive", PowerConsumption, 0, thread_Setfive, THREAD_STACK_SIZE, 14, 14, 1, TX_AUTO_START);
   /* USER CODE END App_ThreadX_Init */
 
   return ret;
@@ -128,7 +133,6 @@ void ReadADC_voltage_current(ULONG initial_input) {
     	uint32_t sumADC_voltage1 = 0, sumADC_current1 = 0,sumADC_voltage2 = 0, sumADC_current2 = 0;
     	uint16_t value_voltage1, value_current1, value_voltage2, value_current2;
     	float voltage_current1,voltage_current2;
-
     	for (int i = 0; i < 500; i++) {
     		HAL_ADC_Start_DMA(&hadc1, adcBuffer, 4);
     		sumADC_voltage1 += adcBuffer[0];
@@ -142,43 +146,74 @@ void ReadADC_voltage_current(ULONG initial_input) {
     	value_current1 = ((sumADC_current1 / 500) - 60) * 4035 / (4095 - 60);
     	value_voltage2 = ((sumADC_voltage2 / 500) - 59) * 3886 / (3994 - 59);
     	value_current2 = ((sumADC_current2 / 500) - 57) * 4038 / (4095 - 57);
+    	if(value_voltage1 > 3882){
+    		value_voltage1 = 0;
+    	}
+    	if(value_voltage2 > 3886){
+    		value_voltage2 = 0;
+    	}
 
     	voltage1 = (value_voltage1 * 14.6) / 3882;
     	voltage_current1 = (value_current1 * 3.31) / 4095;
-    	current1 = fabs((voltage_current1 - 2.5) / 0.097);
+    	current1 = ((voltage_current1 - 2.5) / 0.097);
 
     	voltage2 = (value_voltage2 * 14.6) / 3836;
     	voltage_current2 = (value_current2 * 3.31) / 4095;
-    	current2 = fabs((voltage_current2 - 2.5) / 0.098);
+    	current2 = ((voltage_current2 - 2.5) / 0.098);
 
-    	//Current batt1 Consumption Algorithm
-    	NowMillis1 = tx_time_get();
-    	if (NowMillis1 - BeforeMillis1 >= 1000){
-    		CurrentFiltered1 = 0.2 * current1 + 0.8 * CurrentFiltered1;
-    		ConsumptionEnergy1 += (CurrentFiltered1 / 3600);
-    		batterypercentage1 = ((BatteryCapacity1 - ConsumptionEnergy1) / BatteryCapacity1) *100;
-    		BeforeMillis1 = NowMillis1;
+    	if(voltage1 == 0){
+    		current1 = 0.0;
     	}
-
-    	//Current batt2 Consumption Algorithm
-    	NowMillis2 = tx_time_get();
-    	if (NowMillis2 - BeforeMillis2 >= 1000){
-    		CurrentFiltered2 = 0.2 * current2 + 0.8 * CurrentFiltered2;
-    		ConsumptionEnergy2 += (CurrentFiltered2 / 3600);
-    		batterypercentage2 = ((BatteryCapacity2 - ConsumptionEnergy2) / BatteryCapacity2) *100;
-    		BeforeMillis2 = NowMillis2;
-//    		printf("Voltage1 : %.2f |", voltage1);
-//    		printf("current1 : %.4f |", current1);
-//    		printf("Voltage2 : %.2f |", voltage2);
-//    		printf("current2 : %.4f |", current2);
-//    		printf("Consumption : %.4f Ah |", ConsumptionEnergy1);
-//    		printf("percentage : %d %%\n", (int)round(batterypercentage1));
+    	if(voltage2 == 0){
+    		current2 = 0.0;
     	}
+    	tx_thread_sleep(50);
     }
+}
+
+
+void PowerConsumption(ULONG initial_input) {
+	while(1) {
+		//Current batt1 Consumption Algorithm
+		NowMillis1 = tx_time_get();
+		if (NowMillis1 - BeforeMillis1 >= 1000){
+			CurrentFiltered1 = 0.2 * current1 + 0.8 * CurrentFiltered1;
+			ConsumptionEnergy1 -= (CurrentFiltered1 / 3600);
+			batterypercentage1 = ((BatteryCapacity1 - ConsumptionEnergy1) / BatteryCapacity1) *100;
+			BeforeMillis1 = NowMillis1;
+		}
+
+		//Current batt2 Consumption Algorithm
+		NowMillis2 = tx_time_get();
+		if (NowMillis2 - BeforeMillis2 >= 1000){
+			CurrentFiltered2 = 0.2 * current2 + 0.8 * CurrentFiltered2;
+			ConsumptionEnergy2 -= (CurrentFiltered2 / 3600);
+			batterypercentage2 = ((BatteryCapacity2 - ConsumptionEnergy2) / BatteryCapacity2) *100;
+			BeforeMillis2 = NowMillis2;
+		}
+
+		if(batterypercentage2 < 99){
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
+			tx_thread_sleep(1000);
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+		}
+		else if(batterypercentage2 >= 100){
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+		}
+
+		if (current2 > 0.03) {
+			status = "Charger";
+		}
+		else if (current2 < -0.03){
+			status = "Discharge";
+		}
+	}
 }
 
 void Setup(ULONG initial_input) {
 	Beep_Beep(2,100,50);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
     while(1) {
     	tx_thread_sleep(TX_WAIT_FOREVER);
     }
@@ -199,12 +234,13 @@ void Set_LED(ULONG initial_input) {
 }
 
 void Transmit(ULONG initial_input) {
-	char buffer[128];
+	char buffer[149];
 	HAL_HalfDuplex_EnableTransmitter(&huart1);
 	while(1) {
 		int len = snprintf(buffer, sizeof(buffer),
-				"Voltage1 : %.2f | current1 : %.4f | Voltage2 : %.2f | current2 : %.4f | Consumption : %.4f Ah | percentage : %d %%\n",
-				voltage1, current1, voltage2, current2, ConsumptionEnergy1, (int)round(batterypercentage1));
+				"current1 : %.4f | Voltage2 : %.2f | current2 : %.4f | Consumption : %.4f Ah | percentage : %d %% | Status batt : %s\n",
+				current1, voltage2, current2, ConsumptionEnergy2, (int)round(batterypercentage2), status);
+
 		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, HAL_MAX_DELAY);
 		tx_thread_sleep(1000);
 	}
