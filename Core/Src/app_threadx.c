@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "main.h"
+#include "DS18B20.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -39,7 +40,7 @@
 #define THREAD_STACK_SIZE 1024
 #define BUFFER_SIZE 10
 #define BatteryCapacity1 2.0 //Measurement in units of Ah
-#define BatteryCapacity2 2.0 //Measurement in units of Ah
+#define BatteryCapacity2 3.31 //Measurement in units of Ah
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,23 +55,25 @@ uint8_t thread_Settwo[THREAD_STACK_SIZE];
 uint8_t thread_Setthree[THREAD_STACK_SIZE];
 uint8_t thread_Setfour[THREAD_STACK_SIZE];
 uint8_t thread_Setfive[THREAD_STACK_SIZE];
+//uint8_t thread_Setsix[THREAD_STACK_SIZE];
 
 TX_THREAD setone;
 TX_THREAD settwo;
 TX_THREAD setthree;
 TX_THREAD setfour;
 TX_THREAD setfive;
+//TX_THREAD setsix;
 
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2);
 void write_value(float value, uint32_t address);
 void ReadData(uint32_t address, uint32_t length);
 
 uint32_t NowMillis1, BeforeMillis1,NowMillis2, BeforeMillis2;
-uint32_t adcBuffer[4];
+
 float temperature,voltage1,current1,voltage2,current2,ConsumptionEnergy1,ConsumptionEnergy2;
 float read_data_float, write_value_float,CurrentFiltered1,batterypercentage1,CurrentFiltered2,batterypercentage2;
 int before = 0;
-
+//float temperature;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,6 +83,7 @@ VOID Setup(ULONG initial_input);
 VOID Set_LED(ULONG initial_input);
 VOID Transmit(ULONG initial_input);
 VOID PowerConsumption(ULONG initial_input);
+//VOID ReadTemp(ULONG initial_input);
 
 /* USER CODE END PFP */
 
@@ -99,11 +103,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   /* USER CODE END App_ThreadX_MEM_POOL */
 
   /* USER CODE BEGIN App_ThreadX_Init */
-	tx_thread_create(&setone, "Setone", ReadADC_voltage_current, 0, thread_Setone, THREAD_STACK_SIZE, 14, 14, 1, TX_AUTO_START);
-	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 13, 13, 1, TX_AUTO_START);
-	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 12, 12, 1, TX_AUTO_START);
-	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 10, 10, 1, TX_AUTO_START);
-	tx_thread_create(&setfive, "Setfive", PowerConsumption, 0, thread_Setfive, THREAD_STACK_SIZE, 14, 14, 1, TX_AUTO_START);
+	tx_thread_create(&setone, "Setone", ReadADC_voltage_current, 0, thread_Setone, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
+	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
+	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
+	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
+	tx_thread_create(&setfive, "Setfive", PowerConsumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
+	//tx_thread_create(&setsix, "Setsix", ReadTemp, 0, thread_Setsix, THREAD_STACK_SIZE, 2, 2, 1, TX_AUTO_START);
   /* USER CODE END App_ThreadX_Init */
 
   return ret;
@@ -129,23 +134,36 @@ void MX_ThreadX_Init(void)
 
 /* USER CODE BEGIN 1 */
 void ReadADC_voltage_current(ULONG initial_input) {
-    while(1	) {
-    	uint32_t sumADC_voltage1 = 0, sumADC_current1 = 0,sumADC_voltage2 = 0, sumADC_current2 = 0;
-    	uint16_t value_voltage1, value_current1, value_voltage2, value_current2;
-    	float voltage_current1,voltage_current2;
-    	for (int i = 0; i < 500; i++) {
-    		HAL_ADC_Start_DMA(&hadc1, adcBuffer, 4);
+	uint16_t value_voltage1, value_current1, value_voltage2, value_current2;
+	uint32_t sumADC_voltage1, sumADC_current1, sumADC_voltage2, sumADC_current2;
+	float voltage_current1,voltage_current2;
+	uint32_t adcBuffer[4];
+
+    while(1) {
+    	sumADC_voltage1 = 0;
+    	sumADC_current1 = 0;
+    	sumADC_voltage2 = 0;
+    	sumADC_current2 = 0;
+
+    	HAL_ADC_Start_DMA(&hadc1, adcBuffer, 4);
+    	for (int i = 0; i < 50; i++) {
     		sumADC_voltage1 += adcBuffer[0];
     		sumADC_voltage2 += adcBuffer[1];
     		sumADC_current1 += adcBuffer[2];
     		sumADC_current2 += adcBuffer[3];
-    		HAL_ADC_Stop_DMA(&hadc1);
     	}
+    	HAL_ADC_Stop_DMA(&hadc1);
 
-    	value_voltage1 = ((sumADC_voltage1 / 500) - 60) * 3882 / (3942 - 60);
-    	value_current1 = ((sumADC_current1 / 500) - 60) * 4035 / (4095 - 60);
-    	value_voltage2 = ((sumADC_voltage2 / 500) - 59) * 3886 / (3994 - 59);
-    	value_current2 = ((sumADC_current2 / 500) - 57) * 4038 / (4095 - 57);
+    	uint32_t avg_voltage1 = sumADC_voltage1 / 50;
+    	uint32_t avg_current1 = sumADC_current1 / 50;
+    	uint32_t avg_voltage2 = sumADC_voltage2 / 50;
+    	uint32_t avg_current2 = sumADC_current2 / 50;
+
+    	value_voltage1 = ((avg_voltage1 - 60) * 3882) / (3942 - 60);
+    	value_current1 = ((avg_current1 - 60) * 1023) / (4095 - 60);
+    	value_voltage2 = ((avg_voltage2 - 59) * 3886) / (3994 - 59);
+    	value_current2 = ((avg_current2 - 61) * 1023) / (4095 - 61);
+
     	if(value_voltage1 > 3882){
     		value_voltage1 = 0;
     	}
@@ -154,12 +172,12 @@ void ReadADC_voltage_current(ULONG initial_input) {
     	}
 
     	voltage1 = (value_voltage1 * 14.6) / 3882;
-    	voltage_current1 = (value_current1 * 3.31) / 4095;
-    	current1 = ((voltage_current1 - 2.5) / 0.097);
+    	voltage_current1 = (value_current1 * 3.2504) / 1023;
+    	current1 = ((voltage_current1 - 2.5) / 0.0655);
 
     	voltage2 = (value_voltage2 * 14.6) / 3836;
-    	voltage_current2 = (value_current2 * 3.31) / 4095;
-    	current2 = ((voltage_current2 - 2.5) / 0.098);
+    	voltage_current2 = (value_current2 * 3.2504) / 1023;
+    	current2 = ((voltage_current2 - 2.5) / 0.0665);
 
     	if(voltage1 == 0){
     		current1 = 0.0;
@@ -192,15 +210,15 @@ void PowerConsumption(ULONG initial_input) {
 			BeforeMillis2 = NowMillis2;
 		}
 
-		if(batterypercentage2 < 99){
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
-			tx_thread_sleep(1000);
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
-		}
-		else if(batterypercentage2 >= 100){
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
-		}
+//		if(batterypercentage2 < 99){
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
+//			tx_thread_sleep(1000);
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+//		}
+//		else if(batterypercentage2 >= 100){
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+//		}
 
 		if (current2 > 0.03) {
 			status = "Charger";
@@ -214,6 +232,7 @@ void PowerConsumption(ULONG initial_input) {
 void Setup(ULONG initial_input) {
 	Beep_Beep(2,100,50);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
     while(1) {
     	tx_thread_sleep(TX_WAIT_FOREVER);
     }
@@ -235,13 +254,20 @@ void Set_LED(ULONG initial_input) {
 
 void Transmit(ULONG initial_input) {
 	char buffer[149];
-	HAL_HalfDuplex_EnableTransmitter(&huart1);
+	//HAL_HalfDuplex_EnableTransmitter(&huart1);
 	while(1) {
-		int len = snprintf(buffer, sizeof(buffer),
-				"current1 : %.4f | Voltage2 : %.2f | current2 : %.4f | Consumption : %.4f Ah | percentage : %d %% | Status batt : %s\n",
-				current1, voltage2, current2, ConsumptionEnergy2, (int)round(batterypercentage2), status);
+//		int len = snprintf(buffer, sizeof(buffer),
+//				"value_current1 : %d | voltage_current1 : %.4f | current1 : %.2f | value_current2 : %d | voltage_current2 : %.4f | current2 : %.2f\n",
+//				value_current1, voltage_current1, current1, value_current2, voltage_current2, current2);
+//
+//		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, 1000);
+//		tx_thread_sleep(1000);
 
-		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, HAL_MAX_DELAY);
+		int len = snprintf(buffer, sizeof(buffer),
+				"current1 : %.2f | Voltage2 : %.2f | current2 : %.4f | Consumption : %.4f Ah | percentage : %d %% | Statusbatt : %s\n",
+				current1, voltage2, current2, ConsumptionEnergy1, (int)round(batterypercentage1), status);
+
+		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, 1000);
 		tx_thread_sleep(1000);
 	}
 }
@@ -320,4 +346,14 @@ void ReadData(uint32_t address, uint32_t length) {
 
     memcpy(&read_data_float, data, sizeof(read_data_float));
 }
+
+//Function to read temperature from DS18B20
+//void ReadTemp(ULONG initial_input){
+//	while(1){
+//		Beep_Beep(5,100,50);
+//		temperature = DS18B20_GetTemp();
+////		printf("temp : %.2f", temperature);
+//		tx_thread_sleep(100);
+//	}
+//}
 /* USER CODE END 1 */

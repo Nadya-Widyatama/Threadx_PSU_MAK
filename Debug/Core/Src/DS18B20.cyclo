@@ -1,0 +1,8 @@
+../Core/Src/DS18B20.c:14:6:Set_Pin_Output	1
+../Core/Src/DS18B20.c:22:6:Set_Pin_Input	1
+../Core/Src/DS18B20.c:31:6:delay_us	2
+../Core/Src/DS18B20.c:36:6:thread_sleep_ms	1
+../Core/Src/DS18B20.c:43:9:DS18B20_Start	2
+../Core/Src/DS18B20.c:56:6:DS18B20_Write	3
+../Core/Src/DS18B20.c:74:9:DS18B20_Read	3
+../Core/Src/DS18B20.c:90:7:DS18B20_GetTemp	1
