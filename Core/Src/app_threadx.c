@@ -23,8 +23,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "main.h"
 #include "DS18B20.h"
+#include "main.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -37,10 +37,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define THREAD_STACK_SIZE 1024
+#define THREAD_STACK_SIZE 2048
 #define BUFFER_SIZE 10
 #define BatteryCapacity1 2.0 //Measurement in units of Ah
 #define BatteryCapacity2 3.31 //Measurement in units of Ah
+
+#define DS18B20_PIN GPIO_PIN_5
+#define DS18B20_PORT GPIOA
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,18 +58,27 @@ uint8_t thread_Settwo[THREAD_STACK_SIZE];
 uint8_t thread_Setthree[THREAD_STACK_SIZE];
 uint8_t thread_Setfour[THREAD_STACK_SIZE];
 uint8_t thread_Setfive[THREAD_STACK_SIZE];
-//uint8_t thread_Setsix[THREAD_STACK_SIZE];
+uint8_t thread_Setsix[THREAD_STACK_SIZE];
 
 TX_THREAD setone;
 TX_THREAD settwo;
 TX_THREAD setthree;
 TX_THREAD setfour;
 TX_THREAD setfive;
-//TX_THREAD setsix;
+TX_THREAD setsix;
 
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2);
 void write_value(float value, uint32_t address);
 void ReadData(uint32_t address, uint32_t length);
+
+//void Set_Pin_Output(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
+//void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
+//void delay_us(uint16_t us);
+//void thread_sleep_ms(uint32_t ms);
+//uint8_t DS18B20_Start(void);
+//void DS18B20_Write(uint8_t data);
+//uint8_t DS18B20_Read(void);
+//float DS18B20_GetTemp(void);
 
 uint32_t NowMillis1, BeforeMillis1,NowMillis2, BeforeMillis2;
 
@@ -83,7 +95,7 @@ VOID Setup(ULONG initial_input);
 VOID Set_LED(ULONG initial_input);
 VOID Transmit(ULONG initial_input);
 VOID PowerConsumption(ULONG initial_input);
-//VOID ReadTemp(ULONG initial_input);
+VOID ReadTemp(ULONG initial_input);
 
 /* USER CODE END PFP */
 
@@ -108,7 +120,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setfive, "Setfive", PowerConsumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
-	//tx_thread_create(&setsix, "Setsix", ReadTemp, 0, thread_Setsix, THREAD_STACK_SIZE, 2, 2, 1, TX_AUTO_START);
+	tx_thread_create(&setsix, "Setsix", ReadTemp, 0, thread_Setsix, THREAD_STACK_SIZE, 2, 2, 1, TX_AUTO_START);
   /* USER CODE END App_ThreadX_Init */
 
   return ret;
@@ -219,12 +231,18 @@ void PowerConsumption(ULONG initial_input) {
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
 //			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
 //		}
+		if (current1 > 0.03) {
+			status1 = "Charger";
+		}
+		else if (current1 < -0.03){
+			status1 = "Discharge";
+		}
 
 		if (current2 > 0.03) {
-			status = "Charger";
+			status2 = "Charger";
 		}
 		else if (current2 < -0.03){
-			status = "Discharge";
+			status2 = "Discharge";
 		}
 	}
 }
@@ -253,7 +271,8 @@ void Set_LED(ULONG initial_input) {
 }
 
 void Transmit(ULONG initial_input) {
-	char buffer[149];
+	char buffer1[256];
+//	char buffer2[128];
 	//HAL_HalfDuplex_EnableTransmitter(&huart1);
 	while(1) {
 //		int len = snprintf(buffer, sizeof(buffer),
@@ -262,12 +281,18 @@ void Transmit(ULONG initial_input) {
 //
 //		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, 1000);
 //		tx_thread_sleep(1000);
+		int len1 = snprintf(buffer1, sizeof(buffer1),
+		                   "Temp: %.2f C | Volt1: %.2f V | Curr1: %.2f A | Volt2: %.2f V | Curr2: %.2f A | Cons1: %.4f Ah | Cons2: %.4f Ah | Batt1: %d%% | Batt2: %d%% | Stat1: %s | Stat2: %s\n",
+		                   temperature, voltage1, current1, voltage2, current2, ConsumptionEnergy1, ConsumptionEnergy2,
+		                   (int)round(batterypercentage1),(int)round(batterypercentage1), status1, status2);
 
-		int len = snprintf(buffer, sizeof(buffer),
-				"current1 : %.2f | Voltage2 : %.2f | current2 : %.4f | Consumption : %.4f Ah | percentage : %d %% | Statusbatt : %s\n",
-				current1, voltage2, current2, ConsumptionEnergy1, (int)round(batterypercentage1), status);
+//		int len2 = snprintf(buffer2, sizeof(buffer2),
+//				"A2 : %.4f | Consumption : %.4f Ah | Batt : %d %% | Statusbatt : %s\n",
+//				current2, ConsumptionEnergy1, (int)round(batterypercentage1), status);
 
-		HAL_UART_Transmit(&huart1, (uint8_t*)buffer, len, 1000);
+
+		HAL_UART_Transmit(&huart1, (uint8_t*)buffer1, len1, 1000);
+//		HAL_UART_Transmit(&huart1, (uint8_t*)buffer2, len2, 1000);
 		tx_thread_sleep(1000);
 	}
 }
@@ -285,6 +310,14 @@ void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2) {
 		tx_thread_sleep(delay2);
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
 		tx_thread_sleep(50);
+	}
+}
+
+//Function to read temperature from DS18B20
+void ReadTemp(ULONG initial_input){
+	while(1){
+		temperature = DS18B20_GetTemp();
+		tx_thread_sleep(100);
 	}
 }
 
@@ -346,14 +379,4 @@ void ReadData(uint32_t address, uint32_t length) {
 
     memcpy(&read_data_float, data, sizeof(read_data_float));
 }
-
-//Function to read temperature from DS18B20
-//void ReadTemp(ULONG initial_input){
-//	while(1){
-//		Beep_Beep(5,100,50);
-//		temperature = DS18B20_GetTemp();
-////		printf("temp : %.2f", temperature);
-//		tx_thread_sleep(100);
-//	}
-//}
 /* USER CODE END 1 */

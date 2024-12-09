@@ -29,16 +29,13 @@ void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin) {
 
 // Delay untuk mikrodetik
 void delay_us(uint16_t us) {
-	__HAL_TIM_SET_COUNTER(&htim2, 0);  // Gunakan timer yang dikonfigurasi
-	while (__HAL_TIM_GET_COUNTER(&htim2) < us);
+	__HAL_TIM_SET_COUNTER(&htim2, 0);
+	HAL_TIM_Base_Start(&htim2);
+	while (__HAL_TIM_GET_COUNTER(&htim2) < us){
+		tx_thread_relinquish();
+	}
+	HAL_TIM_Base_Stop(&htim2);
 }
-
-void thread_sleep_ms(uint32_t ms) {
-    // Konversi milidetik ke tick ThreadX
-    uint32_t tick = ms / (1000 / TX_TICK_RATE);  // Misalnya, jika 1 tick = 10 ms, maka TX_TICK_RATE = 100
-    tx_thread_sleep(tick);
-}
-
 
 uint8_t DS18B20_Start(void) {
 	uint8_t response = 0;
@@ -94,7 +91,7 @@ float DS18B20_GetTemp(void) {
 	DS18B20_Start();
 	DS18B20_Write(0xCC);  // SKIP ROM
 	DS18B20_Write(0x44);  // CONVERT T
-	thread_sleep_ms(750000);
+	tx_thread_sleep(750);
 
 	DS18B20_Start();
 	DS18B20_Write(0xCC);  // SKIP ROM

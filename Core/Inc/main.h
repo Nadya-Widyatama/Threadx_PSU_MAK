@@ -32,11 +32,13 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim2;
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi1;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
-extern const char* status;
+extern const char* status1;
+extern const char* status2;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
