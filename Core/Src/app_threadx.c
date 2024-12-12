@@ -59,6 +59,7 @@ uint8_t thread_Setthree[THREAD_STACK_SIZE];
 uint8_t thread_Setfour[THREAD_STACK_SIZE];
 uint8_t thread_Setfive[THREAD_STACK_SIZE];
 uint8_t thread_Setsix[THREAD_STACK_SIZE];
+uint8_t thread_Setseven[THREAD_STACK_SIZE];
 
 TX_THREAD setone;
 TX_THREAD settwo;
@@ -66,36 +67,28 @@ TX_THREAD setthree;
 TX_THREAD setfour;
 TX_THREAD setfive;
 TX_THREAD setsix;
+TX_THREAD setseven;
 
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2);
 void write_value(float value, uint32_t address);
 void ReadData(uint32_t address, uint32_t length);
 
-//void Set_Pin_Output(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
-//void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
-//void delay_us(uint16_t us);
-//void thread_sleep_ms(uint32_t ms);
-//uint8_t DS18B20_Start(void);
-//void DS18B20_Write(uint8_t data);
-//uint8_t DS18B20_Read(void);
-//float DS18B20_GetTemp(void);
-
 uint32_t NowMillis1, BeforeMillis1,NowMillis2, BeforeMillis2;
-
 float temperature,voltage1,current1,voltage2,current2,ConsumptionEnergy1,ConsumptionEnergy2;
-float read_data_float, write_value_float,CurrentFiltered1,batterypercentage1,CurrentFiltered2,batterypercentage2;
+float read_data_float, write_value_float,batterypercentage1,batterypercentage2;
 int before = 0;
 //float temperature;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-VOID ReadADC_voltage_current(ULONG initial_input);
+VOID ADC_Reading(ULONG initial_input);
 VOID Setup(ULONG initial_input);
 VOID Set_LED(ULONG initial_input);
-VOID Transmit(ULONG initial_input);
-VOID PowerConsumption(ULONG initial_input);
-VOID ReadTemp(ULONG initial_input);
+VOID Transmit_Data(ULONG initial_input);
+VOID Power_Consumption(ULONG initial_input);
+VOID Temperature_Reading(ULONG initial_input);
+VOID Memory_Management(ULONG initial_input);
 
 /* USER CODE END PFP */
 
@@ -115,12 +108,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   /* USER CODE END App_ThreadX_MEM_POOL */
 
   /* USER CODE BEGIN App_ThreadX_Init */
-	tx_thread_create(&setone, "Setone", ReadADC_voltage_current, 0, thread_Setone, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
+	tx_thread_create(&setone, "Setone", ADC_Reading, 0, thread_Setone, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
 	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
 	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
-	tx_thread_create(&setfour, "Setfour", Transmit, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
-	tx_thread_create(&setfive, "Setfive", PowerConsumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
-	tx_thread_create(&setsix, "Setsix", ReadTemp, 0, thread_Setsix, THREAD_STACK_SIZE, 2, 2, 1, TX_AUTO_START);
+	tx_thread_create(&setfour, "Setfour", Transmit_Data, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
+	tx_thread_create(&setfive, "Setfive", Power_Consumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
+	tx_thread_create(&setsix, "Setsix", Temperature_Reading, 0, thread_Setsix, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
+	tx_thread_create(&setseven, "setseven", Memory_Management, 0, thread_Setseven, THREAD_STACK_SIZE, 5, 5, 1, TX_AUTO_START);
   /* USER CODE END App_ThreadX_Init */
 
   return ret;
@@ -145,7 +139,7 @@ void MX_ThreadX_Init(void)
 }
 
 /* USER CODE BEGIN 1 */
-void ReadADC_voltage_current(ULONG initial_input) {
+void ADC_Reading(ULONG initial_input) {
 	uint16_t value_voltage1, value_current1, value_voltage2, value_current2;
 	uint32_t sumADC_voltage1, sumADC_current1, sumADC_voltage2, sumADC_current2;
 	float voltage_current1,voltage_current2;
@@ -202,7 +196,8 @@ void ReadADC_voltage_current(ULONG initial_input) {
 }
 
 
-void PowerConsumption(ULONG initial_input) {
+void Power_Consumption(ULONG initial_input) {
+	float CurrentFiltered1,CurrentFiltered2;
 	while(1) {
 		//Current batt1 Consumption Algorithm
 		NowMillis1 = tx_time_get();
@@ -222,15 +217,6 @@ void PowerConsumption(ULONG initial_input) {
 			BeforeMillis2 = NowMillis2;
 		}
 
-//		if(batterypercentage2 < 99){
-//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
-//			tx_thread_sleep(1000);
-//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
-//		}
-//		else if(batterypercentage2 >= 100){
-//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
-//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
-//		}
 		if(voltage1 != 0){
 			if (current1 > 0.03) {
 				status1 = "Charger";
@@ -255,6 +241,7 @@ void PowerConsumption(ULONG initial_input) {
 			status2 = "-";
 		}
 	}
+	tx_thread_sleep(50);
 }
 
 void Setup(ULONG initial_input) {
@@ -280,7 +267,7 @@ void Set_LED(ULONG initial_input) {
 	}
 }
 
-void Transmit(ULONG initial_input) {
+void Transmit_Data(ULONG initial_input) {
 	uint8_t requestBuffer[1];
 	char buffer[256];
 	while(1) {
@@ -301,7 +288,37 @@ void Transmit(ULONG initial_input) {
 	}
 }
 
+void Memory_Management (ULONG initial_input) {
+	uint32_t address = 0x000000;
+	float nilai = 5.1234567;
+	write_value(nilai, address);
 
+	for (int i = 0; i < 3; i++) {
+		 ReadData(address, sizeof(float));
+		  if (!isnan(read_data_float)) {
+			  break;
+		  }
+	tx_thread_sleep(50);
+	}
+
+	while(1) {
+		ReadData(address, sizeof(float));
+		printf("Read Data: %.2f |", read_data_float);
+		printf("Temp: %.2f\n", temperature);
+		Beep_Beep(1,50,50);
+		tx_thread_sleep(3000);
+	}
+}
+
+//Function to read temperature from DS18B20
+void Temperature_Reading(ULONG initial_input){
+	while(1){
+		temperature = DS18B20_GetTemp();
+		tx_thread_sleep(1000);
+	}
+}
+
+//Function Group Zone
 //Function to produce a beep sound on the buzzer
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2) {
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -318,28 +335,20 @@ void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2) {
 	}
 }
 
-//Function to read temperature from DS18B20
-void ReadTemp(ULONG initial_input){
-	while(1){
-		temperature = DS18B20_GetTemp();
-		tx_thread_sleep(100);
-	}
-}
-
-// Function to erase and write values to flash memory
+//Function to erase and write values to flash memory
 void write_value(float value, uint32_t address) {
 	uint8_t write_enable_cmd = 0x06;
     uint8_t data[sizeof(value)];
     memcpy(data, &value, sizeof(value));
 
-    //Erase Sector Command (4 KB)
+    //Erase Sector Function (4 KB)
     uint8_t erase_cmd[4];
     erase_cmd[0] = 0x20;
     erase_cmd[1] = (address >> 16) & 0xFF;
     erase_cmd[2] = (address >> 8) & 0xFF;
     erase_cmd[3] = address & 0xFF;
 
-    //Write Enable Command
+    //Write Enable Function
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&hspi1, &write_enable_cmd, 1, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
@@ -356,7 +365,7 @@ void write_value(float value, uint32_t address) {
     write_cmd[2] = (address >> 8) & 0xFF;
     write_cmd[3] = address & 0xFF;
 
-    //Write Enable Command
+    // Perintah Write Enable
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&hspi1, &write_enable_cmd, 1, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
@@ -368,7 +377,6 @@ void write_value(float value, uint32_t address) {
     tx_thread_sleep(50);
 }
 
-//Function to read data from flash memory
 void ReadData(uint32_t address, uint32_t length) {
     uint8_t cmd[4];
     cmd[0] = 0x03;
