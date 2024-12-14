@@ -76,6 +76,8 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN 0 */
 const char* status1 = "Discharge";
 const char* status2 = "Discharge";
+const char* SoH1 = "healthy";
+const char* SoH2 = "healthy";
 uint8_t RxData2[30];
 
 void __io_putchar(char ch) {
