@@ -84,6 +84,9 @@ float AH_Restored1, AH_Consumed1, AH_Restored2, AH_Consumed2;
 int before = 0;
 float SoH = 100.0;      	// Indeks saat ini
 
+// Variabel global untuk buffer dan flag
+//volatile uint8_t requestBuffer[1] = {0};
+//volatile uint8_t dataReady = 0;
 
 //float temperature;
 /* USER CODE END PV */
@@ -118,7 +121,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 
   /* USER CODE BEGIN App_ThreadX_Init */
 	tx_thread_create(&setone, "Setone", ADC_Reading, 0, thread_Setone, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
-	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
+	tx_thread_create(&settwo, "Settwo", Setup, 0, thread_Settwo, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setthree, "Setthree", Set_LED, 0, thread_Setthree, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setfour, "Setfour", Transmit_Data, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setfive, "Setfive", Power_Consumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
@@ -202,12 +205,12 @@ void ADC_Reading(ULONG initial_input) {
     	if(voltage2 == 0){
     		current2 = 0.0;
     	}
-    	printf("value_voltage1 : %d | ", avg_voltage1);
-    	printf("value_voltage2 : %d | ", avg_voltage2);
-    	printf("voltage1 : %.2f | ", voltage1);
-    	printf("voltage2 : %.2f | ", voltage2);
-    	printf("Current1 : %.3f | ", current1);
-    	printf("Current2 : %.3f | \n", current2);
+//    	printf("value_voltage1 : %d | ", avg_voltage1);
+//    	printf("value_voltage2 : %d | ", avg_voltage2);
+//    	printf("voltage1 : %.2f | ", voltage1);
+//    	printf("voltage2 : %.2f | ", voltage2);
+//    	printf("Current1 : %.3f | ", current1);
+//    	printf("Current2 : %.3f | \n", current2);
     }
 }
 
@@ -257,12 +260,17 @@ void Power_Consumption(ULONG initial_input) {
 			}
 			BeforeMillis2 = NowMillis2;
 		}
-//	printf("Current : %.3f | ", current2);
-//	printf("AH_Consumed1 : %.3f |", AH_Consumed2);
-//	printf("AH_Restored1 : %.3f |", AH_Restored1);
-//	printf("batterypercentage1: %.2f |", batterypercentage2);
-//	printf("status : %s \n", status2);
-	tx_thread_sleep(100);
+	printf("voltage1 : %.2f volt| ", voltage1);
+	printf("Current1 : %.3f A | ", current1);
+	printf("AH_Consumed1 : %.3f Ah |", AH_Consumed1);
+	printf("voltage2 : %.2f volt | ", voltage2);
+	printf("Current2 : %.3f A | ", current2);
+	printf("AH_Consumed2 : %.3f Ah\n|", AH_Consumed2);
+
+	//printf("AH_Restored1 : %.3f |", AH_Restored1);
+	//printf("batterypercentage1: %.2f |", batterypercentage2);
+	//printf("status : %s \n", status2);
+	tx_thread_sleep(1000);
 	}
 }
 
@@ -307,7 +315,7 @@ void SoH_Management(ULONG initial_input) {
 void Setup(ULONG initial_input) {
 	Beep_Beep(2,100,50);
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
-	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
     while(1) {
     	tx_thread_sleep(TX_WAIT_FOREVER);
     }
@@ -327,30 +335,50 @@ void Set_LED(ULONG initial_input) {
 	}
 }
 
+
+
 void Transmit_Data(ULONG initial_input) {
-	uint8_t requestBuffer[1];
-	char buffer[256];
-	while(1) {
-		HAL_HalfDuplex_EnableReceiver(&huart2);
-		HAL_UART_Receive(&huart2, requestBuffer, 1, 1000);
+    uint8_t requestBuffer[0];
+    char buffer[128];
+    while (1) {
+        // Menerima request dari UART
+        HAL_HalfDuplex_EnableReceiver(&huart2);
+        HAL_UART_Receive(&huart2, requestBuffer, 1, 1000);
 
-		if (requestBuffer[0] == 0x55) {
-			tx_thread_sleep(50);
-			int len = snprintf(buffer, sizeof(buffer),
-					"Temp: %.2f C | Volt1: %.2f V | Curr1: %.2f A | Volt2: %.2f V | Curr2: %.2f A | Cons1: %.4f Ah | Cons2: %.4f Ah | Batt1: %d%% | Batt2: %d%% | Stat1: %s | Stat2: %s\n",
-					temperature, voltage1, current1, voltage2, current2, AH_Consumed1, AH_Consumed2,
-					(int)round(batterypercentage1),(int)round(batterypercentage2), status1, status2);
+        // Grup pertama: voltage1, current1, AH_Consumed1, batterypercentage1, status1
+        if (requestBuffer[0] == 0x55) {
+        	tx_thread_sleep(30);
+            int len = snprintf(buffer, sizeof(buffer),
+                "Volt1: %.2f V | Curr1: %.2f A | Cons1: %.4f Ah | Batt1: %d%% | Stat1: %s\n",
+                voltage1, current1, AH_Consumed1, (int)round(batterypercentage1), status1);
+            HAL_HalfDuplex_EnableTransmitter(&huart2);
+            HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
+        }
 
-			HAL_HalfDuplex_EnableTransmitter(&huart2);
-			HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
-		}
-		tx_thread_sleep(50);
-	}
+        // Grup kedua: voltage2, current2, AH_Consumed2, batterypercentage2, status2
+        else if (requestBuffer[0] == 0x66) {
+        	tx_thread_sleep(30);
+            int len = snprintf(buffer, sizeof(buffer),
+                "Volt2: %.2f V | Curr2: %.2f A | Cons2: %.4f Ah | Batt2: %d%% | Stat2: %s\n",
+                voltage2, current2, AH_Consumed2, (int)round(batterypercentage2), status2);
+            HAL_HalfDuplex_EnableTransmitter(&huart2);
+            HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
+        }
+
+        // Grup ketiga: temperature
+        else if (requestBuffer[0] == 0x77) {
+        	tx_thread_sleep(30);
+            int len = snprintf(buffer, sizeof(buffer), "Temp: %.2f C\n", temperature);
+            HAL_HalfDuplex_EnableTransmitter(&huart2);
+            HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
+        }
+        tx_thread_sleep(50);
+    }
 }
 
 void Memory_Management (ULONG initial_input) {
 	uint32_t address = 0x000000;
-	float nilai = 5.1234567;
+	//float nilai = 5.1234567;
 	//write_value(nilai, address);
 
 	for (int i = 0; i < 3; i++) {

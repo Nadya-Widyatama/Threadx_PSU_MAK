@@ -80,13 +80,11 @@ const char* SoH1 = "healthy";
 const char* SoH2 = "healthy";
 uint8_t RxData2[30];
 
-void __io_putchar(char ch) {
-	HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 10);
-}
+//void __io_putchar(char ch) {
+//	HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 10);
+//}
+//
 
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
-	HAL_UARTEx_ReceiveToIdle_IT(&huart2, RxData2, 30);
-}
 /* USER CODE END 0 */
 
 /**
@@ -569,7 +567,7 @@ static void MX_USART2_UART_Init(void)
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX;
+  huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
   huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
@@ -644,7 +642,10 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	}
 }
 
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) {
+    }
+}
 /* USER CODE END 4 */
 
 /**
