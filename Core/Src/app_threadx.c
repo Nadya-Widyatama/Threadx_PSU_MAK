@@ -74,15 +74,16 @@ TX_THREAD setseven;
 TX_THREAD seteight;
 
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2);
-void write_value(float value, uint32_t address);
-void ReadData(uint32_t address, uint32_t length);
+void write_value(void *value, uint32_t address, size_t size);
+void ReadData(void *buffer, uint32_t address, size_t size);
+const char* get_status_string(uint8_t status);
 
 uint32_t NowMillis1, BeforeMillis1,NowMillis2, BeforeMillis2;
 float temperature,voltage1,current1,voltage2,current2;
-float read_data_float, write_value_float,batterypercentage1,batterypercentage2;
+float write_value_float,batterypercentage1,batterypercentage2;
 float AH_Restored1, AH_Consumed1, AH_Restored2, AH_Consumed2;
 int before = 0;
-float SoH = 100.0;      	// Indeks saat ini
+uint8_t SoH1, SoH2;
 
 // Variabel global untuk buffer dan flag
 //volatile uint8_t requestBuffer[1] = {0};
@@ -126,7 +127,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 	tx_thread_create(&setfour, "Setfour", Transmit_Data, 0, thread_Setfour, THREAD_STACK_SIZE, 6, 6, 1, TX_AUTO_START);
 	tx_thread_create(&setfive, "Setfive", Power_Consumption, 0, thread_Setfive, THREAD_STACK_SIZE, 7, 7, 1, TX_AUTO_START);
 	tx_thread_create(&setsix, "Setsix", Temperature_Reading, 0, thread_Setsix, THREAD_STACK_SIZE, 4, 4, 1, TX_AUTO_START);
-	tx_thread_create(&setseven, "Setseven", Memory_Management, 0, thread_Setseven, THREAD_STACK_SIZE, 5, 5, 1, TX_AUTO_START);
+	//tx_thread_create(&setseven, "Setseven", Memory_Management, 0, thread_Setseven, THREAD_STACK_SIZE, 5, 5, 1, TX_AUTO_START);
 	tx_thread_create(&seteight, "Seteight", SoH_Management, 0, thread_Seteight, THREAD_STACK_SIZE, 5, 5, 1, TX_AUTO_START);
   /* USER CODE END App_ThreadX_Init */
 
@@ -205,7 +206,14 @@ void ADC_Reading(ULONG initial_input) {
     	if(voltage2 == 0){
     		current2 = 0.0;
     	}
-//    	printf("value_voltage1 : %d | ", avg_voltage1);
+//    	if((current1 <= -10 && current1 > -15) || (current2 <= -10 && current2 > -15)){
+//    		Beep_Beep(1,100,100);
+//    	}
+//    	else if(current1 <= -15 || current2 <= -15){
+//    		Beep_Beep(2,50,50);
+//    	}
+
+//    	printf("value_voltage1 :    %d | ", avg_voltage1);
 //    	printf("value_voltage2 : %d | ", avg_voltage2);
 //    	printf("voltage1 : %.2f | ", voltage1);
 //    	printf("voltage2 : %.2f | ", voltage2);
@@ -245,7 +253,7 @@ void Power_Consumption(ULONG initial_input) {
 			CurrentFiltered2 = 0.2 * current2 + 0.8 * CurrentFiltered2;
 			if (current2 < 0) {
 				AH_Consumed2 -= (CurrentFiltered2 / 3600);
-				status2 = "Discharge";
+				status2  = "Discharge";
 			}
 			else {
 				AH_Restored2 += (CurrentFiltered2 / 3600);
@@ -260,12 +268,13 @@ void Power_Consumption(ULONG initial_input) {
 			}
 			BeforeMillis2 = NowMillis2;
 		}
-	printf("voltage1 : %.2f volt| ", voltage1);
-	printf("Current1 : %.3f A | ", current1);
-	printf("AH_Consumed1 : %.3f Ah |", AH_Consumed1);
-	printf("voltage2 : %.2f volt | ", voltage2);
-	printf("Current2 : %.3f A | ", current2);
-	printf("AH_Consumed2 : %.3f Ah\n|", AH_Consumed2);
+
+//	printf("voltage1 : %.2f volt| ", voltage1);
+//	printf("Current1 : %.3f A | ", current1);
+//	printf("AH_Consumed1 : %.3f Ah |", AH_Consumed1);
+//	printf("voltage2 : %.2f volt | ", voltage2);
+//	printf("Current2 : %.3f A | ", current2);
+//	printf("AH_Consumed2 : %.3f Ah\n|", AH_Consumed2);
 
 	//printf("AH_Restored1 : %.3f |", AH_Restored1);
 	//printf("batterypercentage1: %.2f |", batterypercentage2);
@@ -274,48 +283,103 @@ void Power_Consumption(ULONG initial_input) {
 	}
 }
 
-// Function to Calculate SoH
+
+// Key threads for SoH management
 void SoH_Management(ULONG initial_input) {
-    static float voltage_no_load = 0.0f;
-    static float voltage_with_load = 0.0f;
-    float voltage_drop;
+    static float voltage_no_load1 = 0.0f;
+    static float voltage_with_load1 = 0.0f;
+    static float voltage_no_load2 = 0.0f;
+    static float voltage_with_load2 = 0.0f;
+    float voltage_drop1, voltage_drop2 = 0.0f;
+
+    // Momory address for storing status
+    uint32_t address1 = 0x000012;
+    uint32_t address2 = 0x000016;
+
+    // start the status by reading form flash memory
+
+    ReadData(&SoH1, address1, sizeof(SoH1));
+    ReadData(&SoH2, address2, sizeof(SoH2));
+
+    // if flash is empty, set default to Healthy
+    if (SoH1 > 3) SoH1 = 0;
+    if (SoH2 > 3) SoH2 = 0;
+
+    uint8_t previousSoH1 = SoH1;
+    uint8_t previousSoH2 = SoH2;
 
     while (1) {
-    	if (current1 < 0.0f) {
-    		if (fabs(current1) < 0.3f) {
-    			voltage_no_load = voltage1;
-    			voltage_with_load = 0.0;
-    			voltage_drop = 0.0;
-    		} else {
-    			voltage_with_load = voltage1;
-    			voltage_drop = voltage_no_load - voltage_with_load;
-    		}
+        if (current1 < 0.0f && batterypercentage1 >= 80) {
+            if (fabs(current1) < 0.3f) {
+                voltage_no_load1 = voltage1;
+                voltage_with_load1 = 0.0f;
+                voltage_drop1 = 0.0f;
+            } else {
+                voltage_with_load1 = voltage1;
+                voltage_drop1 = voltage_no_load1 - voltage_with_load1;
+            }
 
-    		if (current1 < -10.0f && voltage_drop >= 2.0f) {
-    			SoH1 = "Weak";
-    		} else if (current1 < -5.0f && current1 >= -10.0f && voltage_drop < 2.0f && voltage_drop >= 1.0f) {
-    			SoH1 = "Moderate";
-    		} else if (current1 < -1.0f && current1 >= -5.0f && voltage_drop < 1.0f && voltage_drop >= 0.5f) {
-    			SoH1 = "Good";
-    		} else if (current1 >= -1.0f && voltage_drop < 0.5f) {
-    			SoH1 = "Healthy";
-    		}
-    	}
+            if (current1 < -10.0f && voltage_drop1 >= 2.0f && SoH1 != 3) {
+                SoH1 = 3; // Weak
+            } else if (current1 < -5.0f && current1 >= -10.0f && voltage_drop1 < 2.0f && voltage_drop1 >= 1.0f && SoH1 != 2 && SoH1 != 3) {
+                SoH1 = 2; // Moderate
+            } else if (current1 < -1.0f && current1 >= -5.0f && voltage_drop1 < 1.0f && voltage_drop1 >= 0.5f && SoH1 != 1 && SoH1 != 2 && SoH1 != 3) {
+                SoH1 = 1; // Good
+            } else if (voltage_drop1 < 0.5f && SoH1 == 0) {
+                SoH1 = 0; // Healthy
+            }
+        }
 
-//    	printf("Status Baterai: %s\n", SoH1);
-//    	printf("Current : %.2f A |", current1);
-//    	printf("Voltage No Load : %.2f V |", voltage_no_load);
-//    	printf("Voltage With Load : %.2f V |", voltage_with_load);
-//    	printf("Voltage Drop : %.2f V |", voltage_drop);
-    	tx_thread_sleep(100); // Delay 100 ticks
+        if (current2 < 0.0f && batterypercentage2 >= 80) {
+            if (fabs(current2) < 0.3f) {
+                voltage_no_load2 = voltage2;
+                voltage_with_load2 = 0.0f;
+                voltage_drop2 = 0.0f;
+            } else {
+                voltage_with_load2 = voltage2;
+                voltage_drop2 = voltage_no_load2 - voltage_with_load2;
+            }
+
+            if (current2 < -10.0f && voltage_drop2 >= 2.0f && SoH2 != 3) {
+                SoH2 = 3; // Weak
+            } else if (current2 < -5.0f && current2 >= -10.0f && voltage_drop2 < 2.0f && voltage_drop2 >= 1.0f && SoH2 != 2 && SoH2 != 3) {
+                SoH2 = 2; // Moderate
+            } else if (current2 < -1.0f && current2 >= -5.0f && voltage_drop2 < 1.0f && voltage_drop2 >= 0.5f && SoH2 != 1 && SoH2 != 2 && SoH2 != 3) {
+                SoH2 = 1; // Good
+            } else if (voltage_drop2 < 0.5f && SoH2 == 0) {
+                SoH2 = 0; // Healthy
+            }
+        }
+
+        // Save status to memory only if there is a change
+        if (SoH1 != previousSoH1) {
+        	write_value(&SoH1, address1, sizeof(SoH1));
+        	Beep_Beep(5,50,50);
+        	previousSoH1 = SoH1;
+        }
+
+        if (SoH2 != previousSoH2) {
+        	write_value(&SoH2, address2, sizeof(SoH2));
+        	Beep_Beep(5,50,50);
+        	previousSoH2 = SoH2;
+        }
+
+//        printf("Baterai 1: %s\n", get_status_string(SoH1));
+//        printf("Current1: %.2f A | Voltage1 No Load: %.2f V | Voltage1 With Load: %.2f V | Voltage Drop1: %.2f V\n",
+//               current1, voltage_no_load1, voltage_with_load1, voltage_drop1);
+//
+//        printf("Baterai 2: %s\n", get_status_string(SoH2));
+//        printf("Current2: %.2f A | Voltage2 No Load: %.2f V | Voltage2 With Load: %.2f V | Voltage Drop2: %.2f V\n",
+//               current2, voltage_no_load2, voltage_with_load2, voltage_drop2);
+
+        tx_thread_sleep(1000);
     }
 }
-
 
 void Setup(ULONG initial_input) {
 	Beep_Beep(2,100,50);
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
     while(1) {
     	tx_thread_sleep(TX_WAIT_FOREVER);
     }
@@ -345,7 +409,7 @@ void Transmit_Data(ULONG initial_input) {
         HAL_HalfDuplex_EnableReceiver(&huart2);
         HAL_UART_Receive(&huart2, requestBuffer, 1, 1000);
 
-        // Grup pertama: voltage1, current1, AH_Consumed1, batterypercentage1, status1
+        // Group first : voltage1, current1, AH_Consumed1, batterypercentage1, status1
         if (requestBuffer[0] == 0x55) {
         	tx_thread_sleep(30);
             int len = snprintf(buffer, sizeof(buffer),
@@ -355,7 +419,7 @@ void Transmit_Data(ULONG initial_input) {
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
 
-        // Grup kedua: voltage2, current2, AH_Consumed2, batterypercentage2, status2
+        // Group second : voltage2, current2, AH_Consumed2, batterypercentage2, status2
         else if (requestBuffer[0] == 0x66) {
         	tx_thread_sleep(30);
             int len = snprintf(buffer, sizeof(buffer),
@@ -365,10 +429,12 @@ void Transmit_Data(ULONG initial_input) {
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
 
-        // Grup ketiga: temperature
+        // Group third : temperature, SoH batt 1 and 2
         else if (requestBuffer[0] == 0x77) {
         	tx_thread_sleep(30);
-            int len = snprintf(buffer, sizeof(buffer), "Temp: %.2f C\n", temperature);
+            int len = snprintf(buffer, sizeof(buffer),
+            		"Temp: %.2f C | SoH1 : %s | SoH2 : %s\n",
+					temperature, get_status_string(SoH1), get_status_string(SoH2));
             HAL_HalfDuplex_EnableTransmitter(&huart2);
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
@@ -378,22 +444,14 @@ void Transmit_Data(ULONG initial_input) {
 
 void Memory_Management (ULONG initial_input) {
 	uint32_t address = 0x000000;
-	//float nilai = 5.1234567;
-	//write_value(nilai, address);
-
-	for (int i = 0; i < 3; i++) {
-		 ReadData(address, sizeof(float));
-		  if (!isnan(read_data_float)) {
-			  break;
-		  }
-	tx_thread_sleep(50);
-	}
+	char nilai[4] = "hai";
+	write_value(nilai, address, sizeof(float));
 
 	while(1) {
-		//ReadData(address, sizeof(float));
-		//printf("Read Data: %.2f |", read_data_float);
+		ReadData(nilai, address, sizeof(nilai));
+		printf("Read Data: %s \n", nilai);
 		//printf("Temp: %.2f\n", temperature);
-		//Beep_Beep(1,50,50);
+		Beep_Beep(1,50,50);
 		tx_thread_sleep(3000);
 	}
 }
@@ -408,6 +466,18 @@ void Temperature_Reading(ULONG initial_input){
 
 //Function Group Zone
 //Function to produce a beep sound on the buzzer
+
+// Fungsi untuk mengubah angka menjadi status SoH
+const char* get_status_string(uint8_t status) {
+    switch (status) {
+        case 0: return "Healthy";
+        case 1: return "Good";
+        case 2: return "Moderate";
+        case 3: return "Weak";
+        default: return "Unknown";
+    }
+}
+
 void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2) {
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 	for (int i = 0; i < cycle; i++) {
@@ -424,19 +494,19 @@ void Beep_Beep(uint8_t cycle, uint16_t delay1, uint16_t delay2) {
 }
 
 //Function to erase and write values to flash memory
-void write_value(float value, uint32_t address) {
-	uint8_t write_enable_cmd = 0x06;
-    uint8_t data[sizeof(value)];
-    memcpy(data, &value, sizeof(value));
+void write_value(void *value, uint32_t address, size_t size) {
+    uint8_t write_enable_cmd = 0x06;
+    uint8_t data[size];
+    memcpy(data, value, size);
 
-    //Erase Sector Function (4 KB)
+    // Erase Sector Function (4 KB)
     uint8_t erase_cmd[4];
     erase_cmd[0] = 0x20;
     erase_cmd[1] = (address >> 16) & 0xFF;
     erase_cmd[2] = (address >> 8) & 0xFF;
     erase_cmd[3] = address & 0xFF;
 
-    //Write Enable Function
+    // Write Enable Function
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&hspi1, &write_enable_cmd, 1, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
@@ -446,7 +516,7 @@ void write_value(float value, uint32_t address) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
     tx_thread_sleep(100);
 
-    // command Write Data
+    // Command Write Data
     uint8_t write_cmd[4];
     write_cmd[0] = 0x02;
     write_cmd[1] = (address >> 16) & 0xFF;
@@ -460,24 +530,23 @@ void write_value(float value, uint32_t address) {
 
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&hspi1, write_cmd, 4, HAL_MAX_DELAY);
-    HAL_SPI_Transmit(&hspi1, data, sizeof(data), HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, data, size, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
     tx_thread_sleep(50);
 }
 
-void ReadData(uint32_t address, uint32_t length) {
-    uint8_t cmd[4];
-    cmd[0] = 0x03;
-    cmd[1] = (address >> 16) & 0xFF;
-    cmd[2] = (address >> 8) & 0xFF;
-    cmd[3] = address & 0xFF;
 
-    uint8_t data[length];
+void ReadData(void *buffer, uint32_t address, size_t size) {
+    uint8_t read_cmd[4];
+    read_cmd[0] = 0x03; // Command untuk membaca
+    read_cmd[1] = (address >> 16) & 0xFF;
+    read_cmd[2] = (address >> 8) & 0xFF;
+    read_cmd[3] = address & 0xFF;
+
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi1, data, length, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, read_cmd, 4, HAL_MAX_DELAY);
+    HAL_SPI_Receive(&hspi1, buffer, size, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-
-    memcpy(&read_data_float, data, sizeof(read_data_float));
 }
+
 /* USER CODE END 1 */

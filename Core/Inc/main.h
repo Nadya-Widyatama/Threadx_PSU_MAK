@@ -39,8 +39,6 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern const char* status1;
 extern const char* status2;
-extern const char* SoH1;
-extern const char* SoH2;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
