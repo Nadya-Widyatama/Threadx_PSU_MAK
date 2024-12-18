@@ -379,7 +379,7 @@ void SoH_Management(ULONG initial_input) {
 void Setup(ULONG initial_input) {
 	Beep_Beep(2,100,50);
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
     while(1) {
     	tx_thread_sleep(TX_WAIT_FOREVER);
     }
@@ -413,8 +413,8 @@ void Transmit_Data(ULONG initial_input) {
         if (requestBuffer[0] == 0x55) {
         	tx_thread_sleep(30);
             int len = snprintf(buffer, sizeof(buffer),
-                "Volt1: %.2f V | Curr1: %.2f A | Cons1: %.4f Ah | Batt1: %d%% | Stat1: %s\n",
-                voltage1, current1, AH_Consumed1, (int)round(batterypercentage1), status1);
+                "Volt1: %.2f V | Curr1: %.2f A | Cons1: %.4f Ah | AH_Restored1 : %.4f Ah | Batt1: %d%% | Stat1: %s\n",
+                voltage1, current1, AH_Consumed1, AH_Restored1, (int)round(batterypercentage1), status1);
             HAL_HalfDuplex_EnableTransmitter(&huart2);
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
@@ -423,8 +423,8 @@ void Transmit_Data(ULONG initial_input) {
         else if (requestBuffer[0] == 0x66) {
         	tx_thread_sleep(30);
             int len = snprintf(buffer, sizeof(buffer),
-                "Volt2: %.2f V | Curr2: %.2f A | Cons2: %.4f Ah | Batt2: %d%% | Stat2: %s\n",
-                voltage2, current2, AH_Consumed2, (int)round(batterypercentage2), status2);
+                "Volt2: %.2f V | Curr2: %.2f A | Cons2: %.4f Ah | AH_Restored2 : %.4f Ah | Batt2: %d%% | Stat2: %s\n",
+                voltage2, current2, AH_Consumed2, AH_Restored2, (int)round(batterypercentage2), status2);
             HAL_HalfDuplex_EnableTransmitter(&huart2);
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
@@ -438,6 +438,30 @@ void Transmit_Data(ULONG initial_input) {
             HAL_HalfDuplex_EnableTransmitter(&huart2);
             HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, 1000);
         }
+
+        else if (requestBuffer[0] == 0x15) {
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, 1);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 0);
+        }
+        else if (requestBuffer[0] == 0x20) {
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
+        }
+        else if (requestBuffer[0] == 0x25) {
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, 0);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
+        }
+        else if (requestBuffer[0] == 0x30) {
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+        }
+        else if (requestBuffer[0] == 0x35) {
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, 0);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 0);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+        	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
+        }
+
         tx_thread_sleep(50);
     }
 }

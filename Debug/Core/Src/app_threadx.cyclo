@@ -5,10 +5,10 @@
 ../Core/Src/app_threadx.c:288:6:SoH_Management	47
 ../Core/Src/app_threadx.c:379:6:Setup	1
 ../Core/Src/app_threadx.c:388:6:Set_LED	3
-../Core/Src/app_threadx.c:404:6:Transmit_Data	4
-../Core/Src/app_threadx.c:445:6:Memory_Management	1
-../Core/Src/app_threadx.c:460:6:Temperature_Reading	1
-../Core/Src/app_threadx.c:471:13:get_status_string	5
-../Core/Src/app_threadx.c:481:6:Beep_Beep	2
-../Core/Src/app_threadx.c:497:6:write_value	1
-../Core/Src/app_threadx.c:539:6:ReadData	1
+../Core/Src/app_threadx.c:404:6:Transmit_Data	9
+../Core/Src/app_threadx.c:469:6:Memory_Management	1
+../Core/Src/app_threadx.c:484:6:Temperature_Reading	1
+../Core/Src/app_threadx.c:495:13:get_status_string	5
+../Core/Src/app_threadx.c:505:6:Beep_Beep	2
+../Core/Src/app_threadx.c:521:6:write_value	1
+../Core/Src/app_threadx.c:563:6:ReadData	1
